@@ -136,7 +136,7 @@ def tiktok_verify():
 @app.get("/tiktokz1WwzF3N59ESsZr2E3pt5hF58SirsgTN.txt")
 def tiktok_verify2():
     from fastapi.responses import PlainTextResponse
-    return PlainTextResponse("tiktok-developers-site-verification=tkAk1s4951Jyy5571zurMO2FXA99ZDmj")
+    return PlainTextResponse("tiktok-developers-site-verification=z1WwzF3N59ESsZr2E3pt5hF58SirsgTN")
 
 
 @app.get("/login")
