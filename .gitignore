@@ -1,0 +1,23 @@
+# Secrets – NIEMALS hochladen
+.env
+
+# Datenbank
+data/
+*.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/

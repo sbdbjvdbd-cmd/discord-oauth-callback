@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: tiktok-discord-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: TIKTOK_CLIENT_KEY
+        sync: false
+      - key: TIKTOK_CLIENT_SECRET
+        sync: false
+      - key: OAUTH_REDIRECT_URI
+        sync: false
+      - key: SECRET_KEY
+        sync: false
+      - key: DATABASE_URL
+        value: sqlite:///data/app.db
+      - key: SERVER_PORT
+        value: "8080"
