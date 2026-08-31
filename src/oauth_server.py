@@ -97,6 +97,36 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/privacy")
+def privacy():
+    return HTMLResponse("""<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Datenschutzerklärung</title>
+  <style>
+    body{font-family:'Segoe UI',Arial,sans-serif;background:#111;color:#fff;max-width:700px;margin:40px auto;padding:0 20px}
+    h1{color:#fe2c55}h2{color:#aaa;font-size:1.1rem;margin-top:24px}p{color:#ccc;line-height:1.7}
+  </style>
+</head>
+<body>
+  <h1>Datenschutzerklärung</h1>
+  <p>Diese Anwendung verbindet TikTok-Accounts mit Discord über das offizielle TikTok OAuth 2.0 Verfahren.</p>
+  <h2>Welche Daten werden gespeichert?</h2>
+  <p>Wir speichern ausschließlich: TikTok Open ID, TikTok Anzeigename, Discord User ID sowie das OAuth Access Token und Refresh Token.</p>
+  <h2>Was wird NICHT gespeichert?</h2>
+  <p>Wir speichern weder Passwörter noch Session-Daten, private Nachrichten, Videos oder sonstige persönliche Daten.</p>
+  <h2>Wofür werden die Daten verwendet?</h2>
+  <p>Ausschließlich zur Verknüpfung deines TikTok-Accounts mit deinem Discord-Account innerhalb des Servers.</p>
+  <h2>Löschung</h2>
+  <p>Du kannst deine Daten jederzeit mit dem Befehl <strong>/tiktok trennen</strong> im Discord löschen.</p>
+  <h2>Kontakt</h2>
+  <p>Bei Fragen wende dich an den Server-Administrator.</p>
+</body>
+</html>""")
+
+
 @app.get("/.well-known/tiktok.txt")
 def tiktok_verify():
     from fastapi.responses import PlainTextResponse
