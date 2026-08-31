@@ -7,6 +7,7 @@ uvicorn[standard]==0.30.1
 
 # Session-Middleware für OAuth State
 starlette==0.37.2
+itsdangerous==2.2.0
 
 # HTTP Client (TikTok API)
 httpx==0.27.0
