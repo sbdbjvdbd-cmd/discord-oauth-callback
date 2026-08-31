@@ -133,16 +133,10 @@ def tiktok_verify():
     return PlainTextResponse("tiktok-developers-site-verification=tkAk1s4951Jyy5571zurMO2FXA99ZDmj")
 
 
-@app.get("/tiktokz1WwzF3N59ESsZr2E3pt5hF58SirsgTN.txt")
-def tiktok_verify2():
+@app.get("/tiktok{token}.txt")
+def tiktok_verify_dynamic(token: str):
     from fastapi.responses import PlainTextResponse
-    return PlainTextResponse("tiktok-developers-site-verification=z1WwzF3N59ESsZr2E3pt5hF58SirsgTN")
-
-
-@app.get("/tiktokGqprVKcRTm7uKeFxSGHFRM7BSCORMUfa.txt")
-def tiktok_verify3():
-    from fastapi.responses import PlainTextResponse
-    return PlainTextResponse("tiktok-developers-site-verification=GqprVKcRTm7uKeFxSGHFRM7BSCORMUfa")
+    return PlainTextResponse(f"tiktok-developers-site-verification={token}")
 
 
 @app.get("/login")
