@@ -139,6 +139,12 @@ def tiktok_verify2():
     return PlainTextResponse("tiktok-developers-site-verification=z1WwzF3N59ESsZr2E3pt5hF58SirsgTN")
 
 
+@app.get("/tiktokGqprVKcRTm7uKeFxSGHFRM7BSCORMUfa.txt")
+def tiktok_verify3():
+    from fastapi.responses import PlainTextResponse
+    return PlainTextResponse("tiktok-developers-site-verification=GqprVKcRTm7uKeFxSGHFRM7BSCORMUfa")
+
+
 @app.get("/login")
 @limiter.limit("10/minute")
 async def login(
