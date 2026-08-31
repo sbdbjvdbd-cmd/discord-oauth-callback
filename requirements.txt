@@ -1,5 +1,6 @@
 # Discord
 discord.py==2.3.2
+audioop-lts==0.2.1
 
 # Web-Server (OAuth Callback)
 fastapi==0.111.0
