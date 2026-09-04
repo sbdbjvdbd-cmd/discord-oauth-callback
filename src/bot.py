@@ -392,15 +392,18 @@ async def _open_ticket(interaction: discord.Interaction, product_id: str):
         await interaction.response.send_message("❌ Nur auf Servern verfügbar.", ephemeral=True)
         return
 
+    # Sofort antworten um Race Condition zu verhindern
+    await interaction.response.defer(ephemeral=True)
+
     product = PRODUCTS_INFO.get(product_id, {"name": product_id, "emoji": "🛍️", "price": "?"})
 
-    # Prüfen ob User bereits ein offenes Ticket hat
-    existing = discord.utils.get(guild.channels, name=f"ticket-{interaction.user.name.lower()[:15]}-{product_id[:6]}")
-    if existing:
-        await interaction.response.send_message(
-            f"❌ Du hast bereits ein offenes Ticket: {existing.mention}", ephemeral=True
-        )
-        return
+    # Prüfen ob User bereits ein offenes Ticket hat (für dieses Produkt)
+    for ch in guild.text_channels:
+        if (ch.topic and str(interaction.user.id) in ch.topic and product_id[:6] in ch.name):
+            await interaction.followup.send(
+                f"❌ Du hast bereits ein offenes Ticket: {ch.mention}", ephemeral=True
+            )
+            return
 
     # Ticket-Kategorie finden oder erstellen
     category = discord.utils.get(guild.categories, name="🎫 Tickets")
@@ -412,24 +415,24 @@ async def _open_ticket(interaction: discord.Interaction, product_id: str):
 
     # Berechtigungen: nur User + Owner sehen den Kanal
     overwrites = {
-        guild.default_role:                    discord.PermissionOverwrite(view_channel=False),
-        interaction.user:                      discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
-        guild.me:                              discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True),
+        guild.default_role: discord.PermissionOverwrite(view_channel=False),
+        interaction.user:   discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True),
+        guild.me:           discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True),
     }
-    # Owner hinzufügen falls im Server
     owner_member = guild.get_member(OWNER_ID)
     if owner_member:
-        overwrites[owner_member] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True, manage_channels=True)
+        overwrites[owner_member] = discord.PermissionOverwrite(
+            view_channel=True, send_messages=True, read_message_history=True, manage_channels=True
+        )
 
-    channel_name = f"ticket-{interaction.user.name.lower()[:15]}-{product_id[:6]}"
+    channel_name = f"ticket-{interaction.user.name.lower()[:12]}-{product_id[:6]}"
     ticket_channel = await guild.create_text_channel(
         name=channel_name,
         category=category,
         overwrites=overwrites,
-        topic=f"Ticket von {interaction.user} | Produkt: {product['name']}",
+        topic=f"Ticket von {interaction.user} ({interaction.user.id}) | Produkt: {product['name']} | {product_id[:6]}",
     )
 
-    # Willkommensnachricht im Ticket
     embed = discord.Embed(
         title=f"{product['emoji']} Ticket — {product['name']}",
         description=(
@@ -450,7 +453,7 @@ async def _open_ticket(interaction: discord.Interaction, product_id: str):
         view=_TicketCloseView(),
     )
 
-    await interaction.response.send_message(
+    await interaction.followup.send(
         f"✅ Dein Ticket wurde erstellt: {ticket_channel.mention}", ephemeral=True
     )
     logger.info("Ticket erstellt: %s für %s", channel_name, interaction.user)
