@@ -1,4 +1,4 @@
-# Discord
+ja # Discord
 discord.py==2.3.2
 
 # Web-Server (OAuth Callback)
@@ -22,3 +22,6 @@ python-dotenv==1.0.1
 slowapi==0.1.9
 
 # sqlite3 ist eingebaut – keine extra Datenbank-Library nötig
+
+# ─── Stripe ────────────────────────────────────────────────
+stripe==10.5.0
