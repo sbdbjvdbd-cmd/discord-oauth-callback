@@ -552,12 +552,6 @@ async def checkout(request: Request, product_id: str):
 
     try:
         session = stripe.checkout.Session.create(
-            payment_method_types=["card"],
-            payment_method_options={
-                "card": {
-                    "request_three_d_secure": "automatic",
-                }
-            },
             line_items=[{
                 "price_data": {
                     "currency":     "eur",
@@ -574,6 +568,7 @@ async def checkout(request: Request, product_id: str):
             cancel_url=f"{BASE_URL}/shop/cancel",
             locale="de",
             allow_promotion_codes=True,
+            automatic_tax={"enabled": False},
         )
         return RedirectResponse(session.url, status_code=303)
     except Exception as exc:
