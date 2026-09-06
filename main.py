@@ -3,10 +3,10 @@ Einstiegspunkt – startet OAuth-Server und Discord-Bot gleichzeitig.
 Verwendung: python main.py
 """
 
-import asyncio
 import logging
 import os
 import threading
+import time
 
 import uvicorn
 from dotenv import load_dotenv
@@ -20,9 +20,28 @@ logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
-def _start_oauth_server():
-    """Startet den FastAPI-OAuth-Server in einem eigenen Thread."""
-    port = int(os.getenv("SERVER_PORT", "8080"))
+def _start_discord_bot():
+    """Startet den Discord-Bot in einem eigenen Thread."""
+    try:
+        logger.info("Discord-Bot wird gestartet...")
+        run_bot()
+    except Exception as exc:
+        logger.error("Discord-Bot Fehler: %s", exc)
+
+
+def main():
+    logger.info("Starte OAuth-Server und Discord-Bot...")
+
+    # Discord-Bot in Hintergrund-Thread starten
+    bot_thread = threading.Thread(target=_start_discord_bot, daemon=True)
+    bot_thread.start()
+    logger.info("Discord-Bot-Thread gestartet.")
+
+    # Render setzt PORT automatisch – darauf hören damit Healthcheck funktioniert
+    port = int(os.getenv("PORT", os.getenv("SERVER_PORT", "8080")))
+    logger.info("OAuth-Server startet auf Port %d ...", port)
+
+    # FastAPI/uvicorn im Hauptthread – Render's Healthcheck erwartet das hier
     uvicorn.run(
         fastapi_app,
         host="0.0.0.0",
@@ -30,18 +49,6 @@ def _start_oauth_server():
         log_level="info",
         access_log=True,
     )
-
-
-def main():
-    logger.info("Starte OAuth-Server und Discord-Bot...")
-
-    # OAuth-Server in Hintergrund-Thread
-    server_thread = threading.Thread(target=_start_oauth_server, daemon=True)
-    server_thread.start()
-    logger.info("OAuth-Server gestartet.")
-
-    # Discord-Bot im Hauptthread (blockierend)
-    run_bot()
 
 
 if __name__ == "__main__":
