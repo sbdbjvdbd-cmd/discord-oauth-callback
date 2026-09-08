@@ -170,7 +170,7 @@ def privacy():
 @app.get("/.well-known/tiktok.txt")
 def tiktok_verify():
     from fastapi.responses import PlainTextResponse
-    return PlainTextResponse("tiktok-developers-site-verification=tkAk1s4951Jyy5571zurMO2FXA99ZDmj")
+    return PlainTextResponse("tiktok-developers-site-verification=GqprVKcRTm7uKeFxSGHFRM7BSCORMUfa")
 
 
 @app.get("/tiktok{token}.txt")
