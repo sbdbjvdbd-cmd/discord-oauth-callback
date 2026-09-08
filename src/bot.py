@@ -15,7 +15,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from .database import init_db, get_account_by_discord, delete_account
+from .database import init_db, get_account_by_discord, delete_account, get_users_with_discord_token
 
 logger = logging.getLogger(__name__)
 
@@ -180,6 +180,94 @@ async def tiktok_trennen(interaction: discord.Interaction):
             color=discord.Color.green(),
         )
     await interaction.response.send_message(embed=embed, ephemeral=True)
+
+
+# ---------------------------------------------------------------------------
+# /join – 2 verknüpfte User zu einem Server adden (nur Owner)
+# ---------------------------------------------------------------------------
+@bot.tree.command(name="join", description="Fügt 2 verknüpfte User einem Server hinzu (nur Owner).")
+@app_commands.describe(guild_id="Die Server-ID des Ziel-Servers")
+async def join_command(interaction: discord.Interaction, guild_id: str):
+    # Nur Owner darf das
+    if not interaction.guild or interaction.user.id != OWNER_ID:
+        await interaction.response.send_message(
+            embed=discord.Embed(
+                title="❌ Kein Zugriff",
+                description="Nur der Owner kann diesen Command nutzen.",
+                color=discord.Color.red(),
+            ),
+            ephemeral=True,
+        )
+        return
+
+    await interaction.response.defer(ephemeral=True)
+
+    # Guild ID validieren
+    guild_id = guild_id.strip()
+    if not guild_id.isdigit():
+        await interaction.followup.send(
+            embed=discord.Embed(
+                title="❌ Ungültige Guild-ID",
+                description="Bitte eine gültige Server-ID eingeben (nur Zahlen).",
+                color=discord.Color.red(),
+            ),
+            ephemeral=True,
+        )
+        return
+
+    # 2 User mit Discord OAuth Token aus DB holen
+    users = get_users_with_discord_token(limit=2)
+
+    if not users:
+        await interaction.followup.send(
+            embed=discord.Embed(
+                title="❌ Keine User verfügbar",
+                description=(
+                    "Es gibt keine verknüpften User mit Discord OAuth Token.\n"
+                    "User müssen zuerst `/joinguild` nutzen um ihren Token zu speichern."
+                ),
+                color=discord.Color.red(),
+            ),
+            ephemeral=True,
+        )
+        return
+
+    # User zum Ziel-Server adden
+    results = []
+    async with __import__("httpx").AsyncClient(timeout=10) as client:
+        for user in users:
+            discord_id   = user["discord_id"]
+            oauth_token  = user["discord_oauth_token"]
+            tiktok_name  = user.get("tiktok_username") or "Unbekannt"
+
+            try:
+                resp = await client.put(
+                    f"https://discord.com/api/v10/guilds/{guild_id}/members/{discord_id}",
+                    json={"access_token": oauth_token},
+                    headers={
+                        "Authorization": f"Bot {DISCORD_TOKEN}",
+                        "Content-Type":  "application/json",
+                    },
+                )
+                if resp.status_code == 201:
+                    results.append(f"✅ @{tiktok_name} (<@{discord_id}>) — **beigetreten**")
+                elif resp.status_code == 204:
+                    results.append(f"ℹ️ @{tiktok_name} (<@{discord_id}>) — bereits Mitglied")
+                elif resp.status_code == 403:
+                    results.append(f"❌ @{tiktok_name} (<@{discord_id}>) — Token abgelaufen, neu `/joinguild` nötig")
+                else:
+                    results.append(f"⚠️ @{tiktok_name} (<@{discord_id}>) — Fehler {resp.status_code}")
+            except Exception as exc:
+                results.append(f"❌ @{tiktok_name} (<@{discord_id}>) — Fehler: {exc}")
+
+    embed = discord.Embed(
+        title=f"🚀 Join — Server `{guild_id}`",
+        description="\n".join(results),
+        color=discord.Color.green(),
+    )
+    embed.set_footer(text=f"{len(users)} User verarbeitet")
+    await interaction.followup.send(embed=embed, ephemeral=True)
+    logger.info("/join ausgeführt für Guild %s — %d User", guild_id, len(users))
 
 
 # ---------------------------------------------------------------------------

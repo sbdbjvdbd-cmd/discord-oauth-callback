@@ -76,6 +76,7 @@ def init_db():
                 access_token_enc    TEXT NOT NULL,
                 refresh_token_enc   TEXT,
                 token_expires_at    TEXT,
+                discord_oauth_token TEXT,
                 linked_at           TEXT NOT NULL,
                 updated_at          TEXT NOT NULL
             );
@@ -249,3 +250,34 @@ def delete_account(discord_id: str) -> bool:
             "DELETE FROM linked_accounts WHERE discord_id = ?", (discord_id,)
         )
     return cursor.rowcount > 0
+
+
+# ---------------------------------------------------------------------------
+# Discord OAuth Token (für guilds.join)
+# ---------------------------------------------------------------------------
+def save_discord_oauth_token(discord_id: str, access_token: str) -> None:
+    """Speichert den Discord OAuth2 Access Token für guilds.join."""
+    with get_conn() as conn:
+        # Spalte hinzufügen falls sie noch nicht existiert (Migration)
+        try:
+            conn.execute("ALTER TABLE linked_accounts ADD COLUMN discord_oauth_token TEXT")
+        except Exception:
+            pass
+        conn.execute(
+            "UPDATE linked_accounts SET discord_oauth_token = ? WHERE discord_id = ?",
+            (access_token, discord_id),
+        )
+
+
+def get_users_with_discord_token(limit: int = 2) -> list[dict]:
+    """Gibt Users zurück die einen gültigen Discord OAuth Token haben."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            """SELECT discord_id, tiktok_username, discord_oauth_token
+               FROM linked_accounts
+               WHERE discord_oauth_token IS NOT NULL
+               AND discord_oauth_token != ''
+               LIMIT ?""",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
