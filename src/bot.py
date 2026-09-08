@@ -187,7 +187,7 @@ async def tiktok_trennen(interaction: discord.Interaction):
 # ---------------------------------------------------------------------------
 @bot.tree.command(name="joinguild", description="Trete dem zpynq Server bei.")
 async def joinguild(interaction: discord.Interaction):
-    join_url = f"{_base}/discord/login"
+    join_url = "https://discord.com/oauth2/authorize?client_id=1522918754114207804&response_type=code&redirect_uri=https%3A%2F%2Fdiscord-oauth-callback-4w31.onrender.com%2Fdiscord%2Fcallback&scope=guilds.join%20identify"
 
     embed = discord.Embed(
         title="🎉 zpynq Server beitreten",

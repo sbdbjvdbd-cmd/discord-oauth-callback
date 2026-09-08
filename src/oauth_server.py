@@ -496,9 +496,9 @@ async def discord_callback(
             <p>Kein Code erhalten. Bitte erneut versuchen.</p>
         """)
 
-    # CSRF State prüfen
+    # CSRF State prüfen (optional — nur wenn über /discord/login gegangen)
     session_state = request.session.get("discord_oauth_state")
-    if not session_state or session_state != state:
+    if session_state and session_state != state:
         return _page("Fehler", """
             <div class="icon">⚠️</div>
             <h1>Ungültiger State</h1>
