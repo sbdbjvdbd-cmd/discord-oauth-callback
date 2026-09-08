@@ -501,12 +501,14 @@ async def on_ready():
     bot.add_view(_TicketProductView())
     bot.add_view(_TicketCloseView())
     try:
-        # Global sync — Commands in allen Servern sichtbar
-        synced = await bot.tree.sync()
+        # Guild-spezifisch sync — Commands sofort verfügbar (kein 1h Delay)
+        guild = discord.Object(id=MAIN_SERVER_ID)
+        bot.tree.copy_global_to(guild=guild)
+        synced = await bot.tree.sync(guild=guild)
         names = [c.name for c in synced]
-        logger.info("Bot online: %s | Commands: %s", bot.user, names)
+        logger.info("Bot online: %s | Commands (guild): %s", bot.user, names)
         print(f"✅ Bot online als {bot.user}")
-        print(f"   Commands: {names}")
+        print(f"   Commands (guild-sync): {names}")
     except Exception as exc:
         logger.error("Fehler beim Synchronisieren: %s", exc)
 
