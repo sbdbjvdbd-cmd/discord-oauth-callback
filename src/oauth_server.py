@@ -106,7 +106,7 @@ def _page(title: str, body: str) -> HTMLResponse:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>{title}</title>
+  <title>zpynq Tool</title>
   <style>
     *{{box-sizing:border-box;margin:0;padding:0}}
     body{{font-family:'Segoe UI',Arial,sans-serif;background:#111;color:#fff;
@@ -144,7 +144,7 @@ def privacy():
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Datenschutzerklärung</title>
+  <title>zpynq Tool</title>
   <style>
     body{font-family:'Segoe UI',Arial,sans-serif;background:#111;color:#fff;max-width:700px;margin:40px auto;padding:0 20px}
     h1{color:#fe2c55}h2{color:#aaa;font-size:1.1rem;margin-top:24px}p{color:#ccc;line-height:1.7}
@@ -473,7 +473,7 @@ async def shop(request: Request):
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>zpynq Shop</title>
+  <title>zpynq Tool</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     *{{box-sizing:border-box;margin:0;padding:0}}
@@ -564,11 +564,11 @@ async def checkout(request: Request, product_id: str):
                 "quantity": 1,
             }],
             mode="payment",
+            automatic_payment_methods={"enabled": True},
             success_url=f"{BASE_URL}/shop/success?session_id={{CHECKOUT_SESSION_ID}}&product={product_id}",
             cancel_url=f"{BASE_URL}/shop/cancel",
             locale="de",
             allow_promotion_codes=True,
-            automatic_tax={"enabled": False},
         )
         return RedirectResponse(session.url, status_code=303)
     except Exception as exc:
@@ -587,7 +587,7 @@ async def shop_success(request: Request, session_id: str = Query(None), product:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Zahlung erfolgreich – zpynq Shop</title>
+  <title>zpynq Tool</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
     *{{box-sizing:border-box;margin:0;padding:0}}
@@ -627,7 +627,7 @@ async def shop_cancel(request: Request):
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Abgebrochen – zpynq Shop</title>
+  <title>zpynq Tool</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
     *{box-sizing:border-box;margin:0;padding:0}
