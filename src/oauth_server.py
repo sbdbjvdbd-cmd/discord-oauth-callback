@@ -1,9 +1,11 @@
 """
 OAuth-Callback-Server (FastAPI)
 Routen:
-  GET  /health          – Healthcheck
-  GET  /login           – Login-Seite mit TikTok-Button
-  GET  /tiktok/callback – TikTok OAuth Callback, Token-Austausch, Discord-DM
+  GET  /health             – Healthcheck
+  GET  /login              – Login-Seite mit TikTok-Button
+  GET  /tiktok/callback    – TikTok OAuth Callback, Token-Austausch, Discord-DM
+  GET  /discord/login      – Discord OAuth2 Login (guilds.join)
+  GET  /discord/callback   – Discord OAuth2 Callback, User zu Guild hinzufügen
 """
 
 import os
@@ -36,11 +38,17 @@ CLIENT_SECRET    = os.getenv("TIKTOK_CLIENT_SECRET", "")
 REDIRECT_URI     = os.getenv("OAUTH_REDIRECT_URI", "http://localhost:8080/tiktok/callback")
 FLASK_SECRET     = os.getenv("SECRET_KEY", "change-me-to-random-secret")
 DISCORD_TOKEN    = os.getenv("DISCORD_TOKEN", "")
+BASE_URL         = os.getenv("OAUTH_REDIRECT_URI", "http://localhost:8080").rsplit("/tiktok", 1)[0]
 
-STRIPE_SECRET_KEY  = os.getenv("STRIPE_SECRET_KEY", "")
-STRIPE_PUBLIC_KEY  = os.getenv("STRIPE_PUBLIC_KEY", "")
+# Discord OAuth2 (guilds.join)
+DISCORD_CLIENT_ID     = os.getenv("DISCORD_CLIENT_ID", "")
+DISCORD_CLIENT_SECRET = os.getenv("DISCORD_CLIENT_SECRET", "")
+DISCORD_GUILD_ID      = os.getenv("DISCORD_GUILD_ID", "1253800682415325214")
+DISCORD_REDIRECT_URI  = f"{BASE_URL}/discord/callback"
+
+STRIPE_SECRET_KEY     = os.getenv("STRIPE_SECRET_KEY", "")
+STRIPE_PUBLIC_KEY     = os.getenv("STRIPE_PUBLIC_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-BASE_URL           = os.getenv("OAUTH_REDIRECT_URI", "http://localhost:8080").rsplit("/tiktok", 1)[0]
 
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
@@ -428,6 +436,170 @@ async def _notify_discord(discord_id: str, display_name: str) -> None:
             logger.info("Discord-DM gesendet (Discord-ID: [REDACTED])")
     except Exception as exc:
         logger.error("Discord-DM fehlgeschlagen: %s", exc)
+
+
+# ---------------------------------------------------------------------------
+# Discord OAuth2 – guilds.join
+# ---------------------------------------------------------------------------
+
+DISCORD_AUTHORIZE_URL = "https://discord.com/oauth2/authorize"
+DISCORD_TOKEN_URL     = "https://discord.com/api/v10/oauth2/token"
+
+
+@app.get("/discord/login")
+@limiter.limit("10/minute")
+async def discord_login(request: Request):
+    """Startet den Discord OAuth2 Flow mit guilds.join Scope."""
+    if not DISCORD_CLIENT_ID:
+        return _page("Fehler", """
+            <div class="icon">⚠️</div>
+            <h1>Nicht konfiguriert</h1>
+            <p>DISCORD_CLIENT_ID fehlt in der .env Datei.</p>
+        """)
+
+    state = secrets.token_urlsafe(32)
+    # State kurz in Session speichern
+    request.session["discord_oauth_state"] = state
+
+    from urllib.parse import urlencode
+    params = urlencode({
+        "client_id":     DISCORD_CLIENT_ID,
+        "redirect_uri":  DISCORD_REDIRECT_URI,
+        "response_type": "code",
+        "scope":         "guilds.join identify",
+        "state":         state,
+    })
+    auth_url = f"{DISCORD_AUTHORIZE_URL}?{params}"
+    return RedirectResponse(auth_url)
+
+
+@app.get("/discord/callback")
+@limiter.limit("20/minute")
+async def discord_callback(
+    request: Request,
+    code:  Optional[str] = Query(None),
+    state: Optional[str] = Query(None),
+    error: Optional[str] = Query(None),
+):
+    """Discord OAuth2 Callback – tauscht Code gegen Token und fügt User zur Guild hinzu."""
+    if error:
+        return _page("Abgebrochen", """
+            <div class="icon">❌</div>
+            <h1>Abgebrochen</h1>
+            <p>Du hast den Vorgang abgebrochen.</p>
+        """)
+
+    if not code:
+        return _page("Fehler", """
+            <div class="icon">❌</div>
+            <h1>Ungültige Anfrage</h1>
+            <p>Kein Code erhalten. Bitte erneut versuchen.</p>
+        """)
+
+    # CSRF State prüfen
+    session_state = request.session.get("discord_oauth_state")
+    if not session_state or session_state != state:
+        return _page("Fehler", """
+            <div class="icon">⚠️</div>
+            <h1>Ungültiger State</h1>
+            <p>Sicherheitsprüfung fehlgeschlagen. Bitte erneut versuchen.</p>
+        """)
+    request.session.pop("discord_oauth_state", None)
+
+    # Code gegen Access Token tauschen
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                DISCORD_TOKEN_URL,
+                data={
+                    "client_id":     DISCORD_CLIENT_ID,
+                    "client_secret": DISCORD_CLIENT_SECRET,
+                    "grant_type":    "authorization_code",
+                    "code":          code,
+                    "redirect_uri":  DISCORD_REDIRECT_URI,
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            resp.raise_for_status()
+            token_data = resp.json()
+    except Exception as exc:
+        logger.error("Discord Token-Austausch fehlgeschlagen: %s", exc)
+        return _page("Fehler", """
+            <div class="icon">❌</div>
+            <h1>Verbindungsfehler</h1>
+            <p>Token-Austausch fehlgeschlagen. Bitte später erneut versuchen.</p>
+        """)
+
+    access_token = token_data.get("access_token")
+    if not access_token:
+        return _page("Fehler", """
+            <div class="icon">❌</div>
+            <h1>Kein Token erhalten</h1>
+            <p>Discord hat keinen gültigen Token zurückgegeben.</p>
+        """)
+
+    # User-Info holen um die User-ID zu bekommen
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            user_resp = await client.get(
+                "https://discord.com/api/v10/users/@me",
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            user_resp.raise_for_status()
+            user_data = user_resp.json()
+    except Exception as exc:
+        logger.error("Discord User-Info fehlgeschlagen: %s", exc)
+        return _page("Fehler", """
+            <div class="icon">❌</div>
+            <h1>User-Info Fehler</h1>
+            <p>Konnte deine Discord-Daten nicht abrufen.</p>
+        """)
+
+    user_id       = user_data.get("id")
+    username      = user_data.get("username", "Unbekannt")
+    discriminator = user_data.get("discriminator", "0")
+    display_name  = user_data.get("global_name") or username
+
+    # User zur Guild hinzufügen via Bot-Token
+    joined = await _add_to_guild(user_id, access_token)
+
+    if joined:
+        logger.info("User zur Guild hinzugefügt: %s", username)
+        return _page("Erfolgreich beigetreten!", f"""
+            <div class="icon">🎉</div>
+            <h1>Willkommen, {display_name}!</h1>
+            <p>Du wurdest erfolgreich dem Server hinzugefügt.</p>
+            <p style="margin-top:12px;color:#3fb950;font-weight:600">✅ Du bist jetzt Mitglied!</p>
+            <p style="margin-top:16px;color:#666;font-size:.85rem">Du kannst dieses Fenster schließen.</p>
+        """)
+    else:
+        return _page("Bereits Mitglied", f"""
+            <div class="icon">✅</div>
+            <h1>Bereits dabei!</h1>
+            <p>Hey {display_name}, du bist bereits Mitglied des Servers.</p>
+            <p style="margin-top:16px;color:#666;font-size:.85rem">Du kannst dieses Fenster schließen.</p>
+        """)
+
+
+async def _add_to_guild(user_id: str, access_token: str) -> bool:
+    """Fügt einen User via Bot-Token zur Guild hinzu. Gibt True zurück wenn neu hinzugefügt."""
+    if not DISCORD_TOKEN or not user_id:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.put(
+                f"https://discord.com/api/v10/guilds/{DISCORD_GUILD_ID}/members/{user_id}",
+                json={"access_token": access_token},
+                headers={
+                    "Authorization": f"Bot {DISCORD_TOKEN}",
+                    "Content-Type":  "application/json",
+                },
+            )
+            # 201 = neu hinzugefügt, 204 = bereits Mitglied
+            return resp.status_code == 201
+    except Exception as exc:
+        logger.error("Guild-Join fehlgeschlagen: %s", exc)
+        return False
 
 
 # ---------------------------------------------------------------------------

@@ -183,6 +183,28 @@ async def tiktok_trennen(interaction: discord.Interaction):
 
 
 # ---------------------------------------------------------------------------
+# /joinguild – User zum Haupt-Server hinzufügen via Discord OAuth2
+# ---------------------------------------------------------------------------
+@bot.tree.command(name="joinguild", description="Trete dem zpynq Server bei.")
+async def joinguild(interaction: discord.Interaction):
+    join_url = f"{_base}/discord/login"
+
+    embed = discord.Embed(
+        title="🎉 zpynq Server beitreten",
+        description=(
+            "Klicke den Button unten um dem **zpynq Server** beizutreten.\n\n"
+            "Du wirst kurz zu Discord weitergeleitet um die Berechtigung zu bestätigen — "
+            "danach wirst du automatisch hinzugefügt."
+        ),
+        color=0x5865F2,
+    )
+    embed.set_footer(text="Nur ein Klick • Kein Passwort nötig")
+
+    view = _JoinView(join_url)
+    await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+# ---------------------------------------------------------------------------
 # /shop – Zeigt das Kauf-Panel (nur Owner)
 # ---------------------------------------------------------------------------
 @bot.tree.command(name="shop", description="Zeigt das zpynq Shop-Panel im Channel.")
@@ -302,6 +324,19 @@ async def claim(interaction: discord.Interaction, username: str):
 # ---------------------------------------------------------------------------
 # Views / Buttons
 # ---------------------------------------------------------------------------
+class _JoinView(discord.ui.View):
+    def __init__(self, join_url: str):
+        super().__init__(timeout=300)
+        self.add_item(
+            discord.ui.Button(
+                label="Server beitreten",
+                url=join_url,
+                style=discord.ButtonStyle.link,
+                emoji="🎉",
+            )
+        )
+
+
 class _LoginView(discord.ui.View):
     def __init__(self, login_url: str):
         super().__init__(timeout=600)
