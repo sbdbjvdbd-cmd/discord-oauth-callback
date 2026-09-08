@@ -16,6 +16,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from .database import init_db, get_account_by_discord, delete_account, get_users_with_discord_token
+from .joiner import join_guild, count_tokens, save_token
 
 logger = logging.getLogger(__name__)
 
@@ -183,12 +184,20 @@ async def tiktok_trennen(interaction: discord.Interaction):
 
 
 # ---------------------------------------------------------------------------
-# /join – 2 verknüpfte User zu einem Server adden (nur Owner)
+# /join – X Tokens einem Server hinzufügen (nur Owner)
 # ---------------------------------------------------------------------------
-@bot.tree.command(name="join", description="Fügt 2 verknüpfte User einem Server hinzu (nur Owner).")
-@app_commands.describe(guild_id="Die Server-ID des Ziel-Servers")
-async def join_command(interaction: discord.Interaction, guild_id: str):
-    # Nur Owner darf das
+@bot.tree.command(name="join", description="Jointet Token-User einem Server (nur Owner).")
+@app_commands.describe(
+    guild_id="Server-ID des Ziel-Servers",
+    count="Anzahl User die joinen sollen (Standard: 2)",
+    role_id="Rolle die automatisch vergeben wird (optional)",
+)
+async def join_command(
+    interaction: discord.Interaction,
+    guild_id: str,
+    count: int = 2,
+    role_id: str = "",
+):
     if not interaction.guild or interaction.user.id != OWNER_ID:
         await interaction.response.send_message(
             embed=discord.Embed(
@@ -202,7 +211,6 @@ async def join_command(interaction: discord.Interaction, guild_id: str):
 
     await interaction.response.defer(ephemeral=True)
 
-    # Guild ID validieren
     guild_id = guild_id.strip()
     if not guild_id.isdigit():
         await interaction.followup.send(
@@ -215,16 +223,14 @@ async def join_command(interaction: discord.Interaction, guild_id: str):
         )
         return
 
-    # 2 User mit Discord OAuth Token aus DB holen
-    users = get_users_with_discord_token(limit=2)
-
-    if not users:
+    total_available = count_tokens()
+    if total_available == 0:
         await interaction.followup.send(
             embed=discord.Embed(
-                title="❌ Keine User verfügbar",
+                title="❌ Keine Tokens",
                 description=(
-                    "Es gibt keine verknüpften User mit Discord OAuth Token.\n"
-                    "User müssen zuerst `/joinguild` nutzen um ihren Token zu speichern."
+                    "Keine Tokens in `assets/tokens.txt` gefunden.\n"
+                    "User müssen zuerst `/joinguild` nutzen."
                 ),
                 color=discord.Color.red(),
             ),
@@ -232,42 +238,71 @@ async def join_command(interaction: discord.Interaction, guild_id: str):
         )
         return
 
-    # User zum Ziel-Server adden
-    results = []
-    async with __import__("httpx").AsyncClient(timeout=10) as client:
-        for user in users:
-            discord_id   = user["discord_id"]
-            oauth_token  = user["discord_oauth_token"]
-            tiktok_name  = user.get("tiktok_username") or "Unbekannt"
+    # Im Hintergrund joinen (blockiert sonst den Bot)
+    loop = asyncio.get_event_loop()
+    result = await loop.run_in_executor(
+        None,
+        lambda: join_guild(
+            guild_id=guild_id,
+            count=count,
+            role_id=role_id.strip() or None,
+        ),
+    )
 
-            try:
-                resp = await client.put(
-                    f"https://discord.com/api/v10/guilds/{guild_id}/members/{discord_id}",
-                    json={"access_token": oauth_token},
-                    headers={
-                        "Authorization": f"Bot {DISCORD_TOKEN}",
-                        "Content-Type":  "application/json",
-                    },
-                )
-                if resp.status_code == 201:
-                    results.append(f"✅ @{tiktok_name} (<@{discord_id}>) — **beigetreten**")
-                elif resp.status_code == 204:
-                    results.append(f"ℹ️ @{tiktok_name} (<@{discord_id}>) — bereits Mitglied")
-                elif resp.status_code == 403:
-                    results.append(f"❌ @{tiktok_name} (<@{discord_id}>) — Token abgelaufen, neu `/joinguild` nötig")
-                else:
-                    results.append(f"⚠️ @{tiktok_name} (<@{discord_id}>) — Fehler {resp.status_code}")
-            except Exception as exc:
-                results.append(f"❌ @{tiktok_name} (<@{discord_id}>) — Fehler: {exc}")
+    # Ergebnis-Embed bauen
+    lines = []
+    for r in result["results"]:
+        user = r.get("user") or "Unbekannt"
+        status = r["status"]
+        if status == "joined":
+            lines.append(f"✅ {user} — beigetreten")
+        elif status == "already_member":
+            lines.append(f"ℹ️ {user} — bereits Mitglied")
+        elif status == "forbidden":
+            lines.append(f"🔒 {user} — Token abgelaufen")
+        elif status == "invalid":
+            lines.append(f"❌ (ungültiger Token)")
+        else:
+            lines.append(f"⚠️ {user} — {status}")
 
     embed = discord.Embed(
         title=f"🚀 Join — Server `{guild_id}`",
-        description="\n".join(results),
-        color=discord.Color.green(),
+        description="\n".join(lines) or "Keine Ergebnisse",
+        color=discord.Color.green() if result["joined"] > 0 else discord.Color.orange(),
     )
-    embed.set_footer(text=f"{len(users)} User verarbeitet")
+    embed.add_field(name="✅ Beigetreten",   value=str(result["joined"]),  inline=True)
+    embed.add_field(name="ℹ️ Bereits drin",  value=str(result["already"]), inline=True)
+    embed.add_field(name="❌ Fehlgeschlagen", value=str(result["failed"]),  inline=True)
+    embed.set_footer(text=f"Tokens verfügbar: {total_available}")
+
     await interaction.followup.send(embed=embed, ephemeral=True)
-    logger.info("/join ausgeführt für Guild %s — %d User", guild_id, len(users))
+    logger.info("/join — Guild: %s | Joined: %d | Failed: %d", guild_id, result["joined"], result["failed"])
+
+
+# ---------------------------------------------------------------------------
+# /count – Anzahl geladener Tokens anzeigen (nur Owner)
+# ---------------------------------------------------------------------------
+@bot.tree.command(name="count", description="Zeigt die Anzahl verfügbarer OAuth Tokens (nur Owner).")
+async def count_command(interaction: discord.Interaction):
+    if not interaction.guild or interaction.user.id != OWNER_ID:
+        await interaction.response.send_message(
+            embed=discord.Embed(
+                title="❌ Kein Zugriff",
+                description="Nur der Owner kann diesen Command nutzen.",
+                color=discord.Color.red(),
+            ),
+            ephemeral=True,
+        )
+        return
+
+    total = count_tokens()
+    embed = discord.Embed(
+        title="📊 Token-Count",
+        description=f"Es sind aktuell **{total}** OAuth Tokens geladen.",
+        color=discord.Color.blue(),
+    )
+    embed.set_footer(text="Tokens werden über /joinguild gesammelt")
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 # ---------------------------------------------------------------------------

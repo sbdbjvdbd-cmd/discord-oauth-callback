@@ -26,6 +26,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from .database import init_db, save_state, pop_state, upsert_account, save_discord_oauth_token
+from .joiner import save_token
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -562,6 +563,8 @@ async def discord_callback(
 
     # Discord OAuth Token in DB speichern (für /join Command)
     save_discord_oauth_token(discord_id=user_id, access_token=access_token)
+    # Token auch in tokens.txt speichern
+    save_token(access_token)
     logger.info("Discord OAuth Token gespeichert für User: %s", username)
 
     # User zur Guild hinzufügen via Bot-Token
