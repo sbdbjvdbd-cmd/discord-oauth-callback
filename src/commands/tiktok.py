@@ -32,6 +32,8 @@ from ..config.settings import (
 
 logger = logging.getLogger(__name__)
 
+LOGIN_CHANNEL_ID = 1540453226174881853
+OWNER_ID         = 921422333808345118
 _pkce_store: dict[str, str] = {}
 
 
@@ -81,10 +83,18 @@ def register(tree: app_commands.CommandTree, guild: discord.Object | None) -> No
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     # ── /tiktok login ─────────────────────────────────────────────────────────
-    @group.command(name="login", description="🔐 TikTok Account mit Discord verbinden")
+    @group.command(name="login", description="🔐 TikTok Account verbinden — 15$")
     async def cmd_login(interaction: discord.Interaction):
-        if not await _check_channel(interaction):
+        # Nur in Login-Kanal
+        if interaction.channel_id != LOGIN_CHANNEL_ID:
+            embed = discord.Embed(
+                title="❌ Falscher Kanal",
+                description=f"Dieser Command kann nur in <#{LOGIN_CHANNEL_ID}> genutzt werden.",
+                color=0xE74C3C,
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             return
+
         discord_id = str(interaction.user.id)
         existing   = get_account(discord_id)
 
@@ -98,29 +108,26 @@ def register(tree: app_commands.CommandTree, guild: discord.Object | None) -> No
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
-        state              = secrets.token_urlsafe(32)
-        verifier, chall    = generate_pkce()
-        _pkce_store[state] = verifier
-        save_state(state, discord_id)
-        auth_url = build_auth_url(state, chall)
-
+        # Preis-Embed anzeigen
         embed = discord.Embed(
             title="🔐 TikTok Account verbinden",
             description=(
-                "Klicke den Button um deinen TikTok-Account **sicher** zu verbinden.\n\n"
-                "Du wirst zur **offiziellen TikTok-Seite** weitergeleitet.\n"
-                "Wir erhalten **niemals** dein Passwort."
+                "Um deinen TikTok-Account mit Discord zu verbinden, fällt eine einmalige Gebühr an.\n\n"
+                "💰 **Preis: 15$**\n\n"
+                "Klicke auf **Kaufen** und der Owner wird sich bei dir melden."
             ),
             color=0xFE2C55,
         )
-        embed.add_field(name="Ablauf", value=(
-            "1. Button klicken\n"
-            "2. Bei TikTok einloggen\n"
-            "3. Berechtigungen bestätigen\n"
-            "4. ✅ Fertig"
+        embed.add_field(name="Was bekommst du?", value=(
+            "✅ TikTok Account verknüpfen\n"
+            "✅ Username Checker ohne Limits\n"
+            "✅ Account-Infos & Stats\n"
+            "✅ Lifetime Zugang"
         ), inline=False)
-        embed.set_footer(text="Link läuft in 10 Minuten ab • Nur für dich sichtbar")
-        await interaction.response.send_message(embed=embed, view=_LoginView(auth_url), ephemeral=True)
+        embed.set_footer(text="Nach Zahlung erhältst du den Login-Link per DM vom Owner")
+
+        view = _BuyView(interaction.user)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     # ── /tiktok account ───────────────────────────────────────────────────────
     @group.command(name="account", description="👤 Verbundenen TikTok-Account anzeigen")
@@ -464,6 +471,49 @@ class _LoginView(discord.ui.View):
     def __init__(self, url: str):
         super().__init__(timeout=600)
         self.add_item(discord.ui.Button(label="🔐 Mit TikTok verbinden", url=url, style=discord.ButtonStyle.link))
+
+
+class _BuyView(discord.ui.View):
+    def __init__(self, user: discord.User | discord.Member):
+        super().__init__(timeout=300)
+        self.user = user
+
+    @discord.ui.button(label="💰 Kaufen — 15$", style=discord.ButtonStyle.success)
+    async def buy_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+
+        # Owner per DM benachrichtigen
+        try:
+            owner = await interaction.client.fetch_user(OWNER_ID)
+            dm_embed = discord.Embed(
+                title="💰 Neue Kaufanfrage — TikTok Login",
+                description=(
+                    f"**{self.user.name}** möchte den TikTok Login kaufen.\n\n"
+                    f"👤 User: {self.user.mention} (`{self.user.id}`)\n"
+                    f"💰 Preis: **15$**\n\n"
+                    f"Schicke dem User nach Zahlung den Login-Link mit `/tiktok sendlogin {self.user.id}`"
+                ),
+                color=0x2ECC71,
+            )
+            dm_embed.set_thumbnail(url=self.user.display_avatar.url)
+            dm_embed.set_footer(text=f"Server: {interaction.guild.name if interaction.guild else 'DM'}")
+            await owner.send(embed=dm_embed)
+        except Exception as exc:
+            logger.error("Owner DM fehlgeschlagen: %s", exc)
+
+        # User bestätigen
+        confirm = discord.Embed(
+            title="✅ Anfrage gesendet",
+            description=(
+                "Der Owner wurde benachrichtigt!\n\n"
+                "Nach deiner Zahlung von **15$** schickt dir der Owner den Login-Link per DM.\n\n"
+                "Bitte halte deine DMs offen."
+            ),
+            color=0x2ECC71,
+        )
+        confirm.set_footer(text="Der Owner meldet sich in Kürze bei dir")
+        button.disabled = True
+        await interaction.followup.send(embed=confirm, ephemeral=True)
 
 
 class _ConnectionView(discord.ui.View):
