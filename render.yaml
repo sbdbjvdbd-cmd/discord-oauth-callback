@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: tiktok-discord-bot
+    name: zpynq-tiktok-toolkit
     runtime: python
     buildCommand: pip install -r requirements.txt
     startCommand: python main.py
@@ -8,6 +8,10 @@ services:
       - key: DISCORD_TOKEN
         sync: false
       - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: GUILD_ID
         sync: false
       - key: TIKTOK_CLIENT_KEY
         sync: false
@@ -17,5 +21,9 @@ services:
         sync: false
       - key: SECRET_KEY
         sync: false
-      - key: DATABASE_URL
-        value: sqlite:///data/app.db
+      - key: TIKTOK_VERIFY_TOKEN
+        sync: false
+      - key: ALLOWED_CHANNEL_ID
+        sync: false
+      - key: DATABASE_PATH
+        value: data/app.db

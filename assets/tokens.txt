@@ -1,3 +1,0 @@
-# Discord OAuth2 Tokens (einen pro Zeile)
-# Format: access_token
-# Tokens werden über /joinguild gesammelt
