@@ -25,11 +25,16 @@ def create_bot() -> commands.Bot:
         # Commands registrieren
         tiktok_commands.register(bot.tree, guild=guild_obj)
         try:
+            # Zuerst alte globale Commands löschen
+            bot.tree.clear_commands(guild=None)
+            await bot.tree.sync()
+
             if guild_obj:
                 bot.tree.copy_global_to(guild=guild_obj)
                 synced = await bot.tree.sync(guild=guild_obj)
             else:
                 synced = await bot.tree.sync()
+
             names = [c.name for c in synced]
             logger.info("✅ Bot online: %s | Commands: %s", bot.user, names)
             print(f"✅ Bot online als {bot.user}")

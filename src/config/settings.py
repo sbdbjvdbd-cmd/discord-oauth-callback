@@ -32,4 +32,4 @@ FINDER_MAX_CHECKS     = int(os.getenv("FINDER_MAX_CHECKS",    "30"))   # max Che
 FINDER_MAX_PARALLEL   = int(os.getenv("FINDER_MAX_PARALLEL",   "3"))    # parallele Checks
 
 # ── Bot ───────────────────────────────────────────────────────────────────────
-ALLOWED_CHANNEL_ID    = int(os.getenv("ALLOWED_CHANNEL_ID", "0") or 0)
+ALLOWED_CHANNEL_ID    = int(os.getenv("ALLOWED_CHANNEL_ID", "1540453235901599804") or 1540453235901599804)
